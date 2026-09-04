@@ -1,0 +1,57 @@
+# JANVAANI Backend Dependencies
+# Phase 1 — Foundation + Mock AI Layer
+
+# Web Framework
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+
+# Pydantic / Settings
+pydantic==2.9.2
+pydantic-settings==2.5.2
+
+# Database (Phase 4 will use fully; schema prepared in Phase 1)
+sqlalchemy==2.0.35
+asyncpg==0.29.0
+alembic==1.13.3
+psycopg2-binary==2.9.9
+geoalchemy2==0.15.2
+
+# File Uploads & Media
+python-multipart==0.0.12
+aiofiles==24.1.0
+pillow==10.4.0
+
+# Geometry / Spatial (mock mask generation + future real use)
+numpy==2.1.1
+shapely==2.0.6
+
+# H3 Spatial Indexing
+h3==4.1.0
+
+# Auth (Phase 7 will use fully; structure prepared)
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# HTTP Client (for OSM Overpass, OSRM, etc.)
+httpx==0.27.2
+
+# Async Task Queue
+celery[redis]==5.4.0
+redis==5.1.0
+
+# Rate Limiting
+slowapi==0.1.9
+
+# AI: Gemini (for AI summaries)
+google-generativeai==0.8.3
+
+# Geocoding (reverse geocode for address display)
+geopy==2.4.1
+
+# Environment
+python-dotenv==1.0.1
+
+# Dev / Testing
+pytest==8.3.3
+pytest-asyncio==0.24.0
+httpx==0.27.2

@@ -1,0 +1,92 @@
+version: "3.9"
+
+# ============================================================
+# JANVAANI — Docker Compose
+# Services: backend · db (PostGIS) · redis · celery-worker
+# Phase 8 will add: osrm · nginx
+# ============================================================
+
+services:
+
+  # ── FastAPI Backend ─────────────────────────────────────────
+  backend:
+    build: ./janvaani-backend
+    container_name: janvaani-backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./janvaani-backend:/app          # hot reload in dev
+      - media_uploads:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - janvaani
+    restart: unless-stopped
+
+  # ── PostgreSQL + PostGIS ────────────────────────────────────
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: janvaani-db
+    environment:
+      POSTGRES_DB: janvaani
+      POSTGRES_USER: janvaani
+      POSTGRES_PASSWORD: janvaanipass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./janvaani-backend/db/init:/docker-entrypoint-initdb.d  # init SQL scripts
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U janvaani -d janvaani"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - janvaani
+    restart: unless-stopped
+
+  # ── Redis (Celery broker + result backend) ──────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: janvaani-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - janvaani
+    restart: unless-stopped
+
+  # ── Celery Worker (async AI jobs) ───────────────────────────
+  celery-worker:
+    build: ./janvaani-backend
+    container_name: janvaani-celery
+    command: celery -A app.worker worker --loglevel=info --concurrency=2
+    env_file:
+      - .env
+    volumes:
+      - ./janvaani-backend:/app
+      - media_uploads:/app/uploads
+    depends_on:
+      - redis
+      - db
+    networks:
+      - janvaani
+    restart: unless-stopped
+
+# ── Volumes ──────────────────────────────────────────────────
+volumes:
+  postgres_data:
+  redis_data:
+  media_uploads:
+
+# ── Networks ─────────────────────────────────────────────────
+networks:
+  janvaani:
+    driver: bridge
