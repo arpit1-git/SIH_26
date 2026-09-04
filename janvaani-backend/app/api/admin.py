@@ -309,13 +309,42 @@ async def assign_incident(incident_id: str, body: dict = Body(...)):
     }
 
 
-@router.get("/predictions", summary="Predicted hotspots (stub — Phase 9)")
+from app.services.predictive_service import predictive_service
+
+
+# ── Predictive & AI Policy Simulator (Phase 9) ────────────────────────────────
+
+@router.get("/predictions", summary="XGBoost & H3 predicted risk forecasts")
 async def get_predictions():
-    """Predictive hotspot data. Full XGBoost + H3 model implemented in Phase 9."""
-    return {
-        "predictions": [],
-        "note": "Predictive hotspot model implemented in Phase 9.",
-    }
+    """
+    Returns 7-day to 30-day predicted risk indices, H3 spatial hotspot features,
+    and ward-by-ward vulnerability forecasts.
+    """
+    return predictive_service.get_predictive_risk_data()
+
+
+@router.get("/predictions/recurring", summary="Chronic blackspots & recurring problem analysis")
+async def get_recurring_blackspots():
+    """
+    Returns chronic repeat problem locations (3+ incidents in 90d),
+    causal root-cause analysis, and long-term remediation recommendations.
+    """
+    return predictive_service.get_recurring_problems()
+
+
+@router.post("/predictions/simulate", summary="Run AI policy & budget simulation")
+async def simulate_policy(body: dict = Body(default={})):
+    """
+    Simulates municipal intervention scenarios (budget increases, field team additions, desilting).
+    Returns projected risk reduction %, SLA compliance boost %, prevented incidents, and estimated ROI multiplier.
+    """
+    return predictive_service.simulate_policy(
+        sanitation_budget_increase_pct=float(body.get("sanitation_budget_increase_pct", 0)),
+        drainage_budget_increase_pct=float(body.get("drainage_budget_increase_pct", 0)),
+        road_budget_increase_pct=float(body.get("road_budget_increase_pct", 0)),
+        extra_field_teams=int(body.get("extra_field_teams", 0)),
+        pre_monsoon_clearing=bool(body.get("pre_monsoon_clearing", False)),
+    )
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

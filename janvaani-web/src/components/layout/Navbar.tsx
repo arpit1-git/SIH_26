@@ -30,6 +30,7 @@ export const Navbar: React.FC = () => {
 
   const municipalLinks = [
     { name: "Command Center", href: "/command-center", icon: ShieldAlert },
+    { name: "Predictive AI", href: "/predictions", icon: Cpu },
     { name: "Field Worker", href: "/field", icon: HardHat },
     { name: "SLA & Escalation", href: "/escalation", icon: AlertTriangle },
   ];
