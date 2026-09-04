@@ -60,8 +60,13 @@ def generate_mock_incidents(count: int = 50) -> list:
 
         hours_ago = random.randint(1, 48)
         created_at = now - timedelta(hours=hours_ago)
-        
         status = "resolved" if (i % 6 == 0 and not is_critical) else ("in_progress" if (i % 3 == 0) else "open")
+
+        # SLA hours by severity
+        sla_hours = {"critical": 4, "high": 12, "medium": 24, "low": 72}.get(severity, 24)
+        sla_deadline = created_at + timedelta(hours=sla_hours)
+        is_overdue = status not in ("resolved", "closed") and sla_deadline < now
+
 
         incidents.append({
             "incident_id": incident_id,
@@ -84,9 +89,12 @@ def generate_mock_incidents(count: int = 50) -> list:
             "assigned_authority": "Municipal Corporation Central Zone",
             "assigned_department": "Sanitation & Solid Waste" if theme["cat"] == "waste" else "Stormwater Drainage & Flood Control",
             "assigned_team": f"Rapid Action Team #{i%5 + 1}",
+            "assigned_worker_id": f"W{(i % 6) + 1:03d}" if status in ("assigned", "in_progress") else None,
             "status": status,
-            "sla_deadline": (created_at + timedelta(hours=12)).isoformat(),
-            "escalation_level": 1 if is_critical and hours_ago > 6 else 0,
+            "sla_deadline": sla_deadline.isoformat(),
+            "sla_hours": sla_hours,
+            "is_overdue": is_overdue,
+            "escalation_level": 2 if (is_overdue and is_critical) else (1 if is_overdue else 0),
             "image_url": theme["img"],
             "segmentation_mask_url": f"/api/ai/mock-mask?type={theme['type']}&seed={i}",
             "affected_area_estimate": round(theme["area"] + random.uniform(-5.0, 10.0), 1),
@@ -104,3 +112,54 @@ def generate_mock_incidents(count: int = 50) -> list:
         })
 
     return incidents
+
+
+# ── Phase 7: Field Workers ─────────────────────────────────────────────────────
+
+WORKER_NAMES = [
+    ("Ramesh Kumar",    "Sanitation & Solid Waste",            "9811100101", "senior"),
+    ("Priya Sharma",    "Stormwater Drainage & Flood Control", "9811100102", "senior"),
+    ("Anil Verma",      "Sanitation & Solid Waste",            "9811100103", "junior"),
+    ("Kavita Singh",    "Stormwater Drainage & Flood Control", "9811100104", "junior"),
+    ("Deepak Yadav",    "Roads & Infrastructure",              "9811100105", "senior"),
+    ("Sunita Mehta",    "Sanitation & Solid Waste",            "9811100106", "junior"),
+]
+
+WORKER_STATUSES = ["available", "on_duty", "on_duty", "in_transit", "available", "on_duty"]
+
+
+def generate_field_workers() -> list:
+    """Generate 6 realistic field workers for Phase 7."""
+    now = datetime.now(timezone.utc)
+    workers = []
+
+    for idx, (name, dept, phone, grade) in enumerate(WORKER_NAMES):
+        worker_id = f"W{idx + 1:03d}"
+        w_status = WORKER_STATUSES[idx]
+
+        # Assign some workers to existing incidents
+        assigned_incident = None
+        current_task_status = None
+        if w_status in ("on_duty", "in_transit"):
+            assigned_incident = f"JV-{1001 + idx * 7}"
+            current_task_status = "in_progress" if w_status == "on_duty" else "on_the_way"
+
+        workers.append({
+            "worker_id": worker_id,
+            "name": name,
+            "department": dept,
+            "phone": phone,
+            "grade": grade,
+            "status": w_status,
+            "assigned_incident_id": assigned_incident,
+            "current_task_status": current_task_status,
+            "total_resolved": (idx + 1) * 7 + idx * 3,
+            "avg_resolution_hours": round(8.0 + idx * 1.5, 1),
+            "sla_compliance_pct": round(85.0 - idx * 2.5, 1),
+            "joined_at": (now - timedelta(days=180 + idx * 30)).isoformat(),
+            "last_active": (now - timedelta(hours=idx)).isoformat(),
+            "location_lat": 28.6139 + (idx * 0.005),
+            "location_lng": 77.2090 + (idx * 0.004),
+        })
+
+    return workers

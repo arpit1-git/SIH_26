@@ -4,12 +4,14 @@ import React from "react";
 import { Trash2, Droplets, AlertOctagon, Flame, ShieldAlert } from "lucide-react";
 
 interface SeverityChipProps {
-  issueType: string;
+  issueType?: string;
+  severity?: string;
   size?: "sm" | "md";
 }
 
-export const SeverityChip: React.FC<SeverityChipProps> = ({ issueType, size = "md" }) => {
-  const normType = (issueType || "").toLowerCase();
+export const SeverityChip: React.FC<SeverityChipProps> = ({ issueType, severity, size = "md" }) => {
+  const val = issueType || severity || "general";
+  const normType = val.toLowerCase();
 
   const isWater = normType.includes("water") || normType.includes("flood") || normType.includes("drain");
   
@@ -20,7 +22,7 @@ export const SeverityChip: React.FC<SeverityChipProps> = ({ issueType, size = "m
 
   const sizeClass = size === "sm" ? "px-2 py-0.5 text-[10px]" : "px-2.5 py-1 text-xs";
 
-  const formattedName = issueType
+  const formattedName = val
     .replace(/_/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
 

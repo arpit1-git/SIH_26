@@ -1,10 +1,11 @@
 """
 In-Memory Store & Seed Loader for JANVAANI.
 Provides instant pre-seeded records for 50+ civic incidents, nearby facilities, and comments.
+Phase 7: Added field workers registry and SLA rules.
 """
 
 from typing import Dict, List, Set
-from app.db.seed import generate_mock_incidents
+from app.db.seed import generate_mock_incidents, generate_field_workers
 
 # complaints[complaint_id] = { ...complaint fields... }
 complaints: Dict[str, dict] = {}
@@ -28,9 +29,20 @@ news_shares: Dict[str, int] = {}
 # Nearby facility evidence cache
 facilities: Dict[str, list] = {}
 
+# Phase 7: Field workers  workers[worker_id] = { ...worker fields... }
+workers: Dict[str, dict] = {}
+
+# Phase 7: SLA rules by severity — max hours before escalation
+sla_rules: Dict[str, int] = {
+    "critical": 4,    # 4 hours
+    "high":     12,   # 12 hours
+    "medium":   24,   # 24 hours
+    "low":      72,   # 72 hours
+}
+
 
 def seed_store():
-    """Seed in-memory store with 50+ realistic incidents."""
+    """Seed in-memory store with 50+ realistic incidents and field workers."""
     mock_data = generate_mock_incidents(50)
     for inc in mock_data:
         inc_id = inc["incident_id"]
@@ -84,6 +96,11 @@ def seed_store():
             }
         ]
 
+    # Phase 7: Seed field workers
+    for w in generate_field_workers():
+        workers[w["worker_id"]] = w
+
 
 # Run seeding
 seed_store()
+

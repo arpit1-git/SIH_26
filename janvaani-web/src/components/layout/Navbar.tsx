@@ -1,23 +1,40 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ThemeSwitcher } from "@/components/theme/ThemeSwitcher";
-import { PlusCircle, Map, AlertTriangle, ShieldCheck, Cpu } from "lucide-react";
+import {
+  PlusCircle,
+  ShieldAlert,
+  HardHat,
+  AlertTriangle,
+  Cpu,
+  ChevronDown,
+  Building2,
+} from "lucide-react";
 
 export const Navbar: React.FC = () => {
   const pathname = usePathname();
+  const [municipalOpen, setMunicipalOpen] = useState(false);
 
   const navLinks = [
     { name: "Explore", href: "/" },
     { name: "Report", href: "/report" },
     { name: "Feed", href: "/complaints" },
     { name: "Heatmap", href: "/heatmap" },
-    { name: "Priority Inbox", href: "/inbox" },
-    { name: "Civic News", href: "/news" },
+    { name: "Inbox", href: "/inbox" },
+    { name: "News", href: "/news" },
     { name: "Resolved", href: "/resolved" },
   ];
+
+  const municipalLinks = [
+    { name: "Command Center", href: "/command-center", icon: ShieldAlert },
+    { name: "Field Worker", href: "/field", icon: HardHat },
+    { name: "SLA & Escalation", href: "/escalation", icon: AlertTriangle },
+  ];
+
+  const isMunicipalActive = municipalLinks.some((l) => pathname === l.href);
 
   return (
     <header className="sticky top-0 z-40 w-full glass-nav shadow-lg">
@@ -50,7 +67,7 @@ export const Navbar: React.FC = () => {
               <Link
                 key={link.href}
                 href={link.href}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition ${
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition ${
                   isActive
                     ? "bg-amber-500 text-slate-950 shadow-md font-semibold"
                     : "text-slate-300 hover:text-white hover:bg-white/10"
@@ -60,6 +77,60 @@ export const Navbar: React.FC = () => {
               </Link>
             );
           })}
+
+          {/* Municipal dropdown separator */}
+          <div className="w-px h-4 bg-white/15 mx-1" />
+
+          {/* Municipal dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setMunicipalOpen((p) => !p)}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition ${
+                isMunicipalActive
+                  ? "bg-red-500/80 text-white shadow-md font-semibold"
+                  : "text-red-300 hover:text-white hover:bg-red-500/20 border border-red-500/30"
+              }`}
+            >
+              <Building2 className="w-3.5 h-3.5" />
+              Municipal
+              <ChevronDown
+                className={`w-3 h-3 transition-transform ${municipalOpen ? "rotate-180" : ""}`}
+              />
+            </button>
+
+            {municipalOpen && (
+              <>
+                {/* Backdrop */}
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setMunicipalOpen(false)}
+                />
+                <div className="absolute top-full right-0 mt-2 z-50 glass-card rounded-xl overflow-hidden border border-red-500/20 min-w-[200px] shadow-2xl">
+                  {municipalLinks.map((link) => {
+                    const Icon = link.icon;
+                    const isActive = pathname === link.href;
+                    return (
+                      <Link
+                        key={link.href}
+                        href={link.href}
+                        onClick={() => setMunicipalOpen(false)}
+                        className={`flex items-center gap-3 px-4 py-3 text-xs font-medium transition hover:bg-white/5 ${
+                          isActive ? "text-red-300 bg-red-900/20" : "text-slate-300"
+                        }`}
+                      >
+                        <Icon
+                          className={`w-4 h-4 ${
+                            isActive ? "text-red-400" : "text-slate-500"
+                          }`}
+                        />
+                        {link.name}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
         </nav>
 
         {/* Right Actions: Theme Switcher + CTA */}
