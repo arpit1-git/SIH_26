@@ -20,10 +20,23 @@ def _risk_level(score: float) -> str:
 
 
 def _enrich_admin(inc: dict) -> dict:
+    risk = inc.get("risk_score", 30.0)
+    level = _risk_level(risk)
+    facilities = store.facilities.get(inc["incident_id"], [])
+    
+    # Check if hospital / school within impact threshold
+    has_hospital = any(f.get("facility_type") == "hospital" and f.get("distance_meters", 1000) <= 400 for f in facilities)
+    has_school = any(f.get("facility_type") == "school" and f.get("distance_meters", 1000) <= 300 for f in facilities)
+
     return {
         **inc,
-        "level": _risk_level(inc.get("risk_score", 30.0)),
-        "civic_impact_score": round(inc.get("risk_score", 30.0) * 0.95, 1),
+        "level": level,
+        "civic_impact_score": inc.get("civic_impact_score", round(risk * 0.95, 1)),
+        "complaint_velocity": inc.get("complaint_velocity", 1.0),
+        "is_velocity_surge": inc.get("complaint_velocity", 1.0) >= 2.0,
+        "critical_facility_alert": has_hospital or has_school,
+        "facilities": facilities,
+        "address": inc.get("address", inc.get("location_name")),
     }
 
 
@@ -33,30 +46,41 @@ def _enrich_admin(inc: dict) -> dict:
 async def priority_inbox(
     level: Optional[str] = Query(None, description="Filter: low/medium/high/critical"),
     status: Optional[str] = Query(None),
+    category: Optional[str] = Query(None, description="Filter: waste/waterlogging"),
+    sort_by: str = Query("priority", description="Sort by: priority / impact / velocity / reports"),
     limit: int = Query(50, le=200),
 ):
     """
-    Municipal priority inbox.
-    Returns incidents sorted by risk_score descending (most urgent first).
-    Live-updating as scores change (WebSocket in Phase 5).
-
-    Phase 7: requires JWT admin/municipal-authority role.
+    Municipal priority inbox (PRD Section 33).
+    Returns incidents sorted by risk_score, civic_impact, or velocity.
+    Enriched with facility alerts and velocity surge indicators.
     """
-    # TODO Phase 7: require_roles(["admin", "municipal_authority", "supervisor"])
     incidents = list(store.incidents.values())
 
     if level:
         incidents = [i for i in incidents if _risk_level(i.get("risk_score", 0)) == level]
     if status:
         incidents = [i for i in incidents if i.get("status") == status]
+    if category:
+        incidents = [i for i in incidents if i.get("category") == category]
 
-    incidents.sort(key=lambda x: x.get("risk_score", 0), reverse=True)
+    if sort_by == "impact":
+        incidents.sort(key=lambda x: x.get("civic_impact_score", x.get("risk_score", 0)), reverse=True)
+    elif sort_by == "velocity":
+        incidents.sort(key=lambda x: x.get("complaint_velocity", 0.0), reverse=True)
+    elif sort_by == "reports":
+        incidents.sort(key=lambda x: x.get("complaint_count", 1) + x.get("support_count", 0), reverse=True)
+    else:  # priority (default)
+        incidents.sort(key=lambda x: x.get("risk_score", 0), reverse=True)
 
+    all_incs = list(store.incidents.values())
     summary = {
-        "critical": sum(1 for i in incidents if _risk_level(i.get("risk_score", 0)) == "critical"),
-        "high":     sum(1 for i in incidents if _risk_level(i.get("risk_score", 0)) == "high"),
-        "medium":   sum(1 for i in incidents if _risk_level(i.get("risk_score", 0)) == "medium"),
-        "low":      sum(1 for i in incidents if _risk_level(i.get("risk_score", 0)) == "low"),
+        "critical": sum(1 for i in all_incs if _risk_level(i.get("risk_score", 0)) == "critical"),
+        "high":     sum(1 for i in all_incs if _risk_level(i.get("risk_score", 0)) == "high"),
+        "medium":   sum(1 for i in all_incs if _risk_level(i.get("risk_score", 0)) == "medium"),
+        "low":      sum(1 for i in all_incs if _risk_level(i.get("risk_score", 0)) == "low"),
+        "velocity_surges": sum(1 for i in all_incs if i.get("complaint_velocity", 0.0) >= 2.0),
+        "total": len(all_incs),
     }
 
     return {

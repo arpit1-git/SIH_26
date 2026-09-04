@@ -14,7 +14,7 @@ export const Navbar: React.FC = () => {
     { name: "Report Issue", href: "/report" },
     { name: "Complaints", href: "/complaints" },
     { name: "Heatmap", href: "/heatmap" },
-    { name: "Command Center", href: "/admin" },
+    { name: "Priority Inbox", href: "/inbox" },
   ];
 
   return (

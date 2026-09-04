@@ -20,18 +20,19 @@ export default function ComplaintsFeedPage() {
   const fetchIncidents = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/incidents");
+      const res = await fetch("/api/incidents?limit=50");
       if (res.ok) {
         const data = await res.json();
-        const mapped: IncidentData[] = data.map((item: any) => ({
+        const list = Array.isArray(data) ? data : data.incidents || [];
+        const mapped: IncidentData[] = list.map((item: any) => ({
           id: item.incident_id,
           issueType: item.issue_type,
-          severity: item.severity as RiskLevel,
+          severity: item.level || item.severity,
           riskScore: item.risk_score,
-          locationName: item.location_name,
+          locationName: item.location_name || item.address || "Civic Location",
           imageUrl: item.image_url || "/ui_themes/waste1.jpg",
-          supportCount: item.support_count,
-          commentCount: item.comment_count,
+          supportCount: item.support_count || 0,
+          commentCount: item.comment_count || (item.comments ? item.comments.length : 0),
           createdAt: new Date(item.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         }));
         setIncidents(mapped);
@@ -79,7 +80,7 @@ export default function ComplaintsFeedPage() {
   };
 
   const filtered = incidents.filter((inc) => {
-    const matchesSearch = inc.locationName.toLowerCase().includes(searchQuery.toLowerCase()) || inc.issueType.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = inc.locationName.toLowerCase().includes(searchQuery.toLowerCase()) || inc.issueType.toLowerCase().includes(searchQuery.toLowerCase()) || inc.id.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesSeverity = filterSeverity === "all" || inc.severity.toLowerCase() === filterSeverity.toLowerCase();
     const isWater = inc.issueType.includes("water") || inc.issueType.includes("drain") || inc.issueType.includes("flood");
     const matchesCategory = filterCategory === "all" || (filterCategory === "waterlogging" ? isWater : !isWater);
@@ -95,13 +96,22 @@ export default function ComplaintsFeedPage() {
           <p className="text-xs text-slate-400">Live stream of reported civic issues prioritized by computer vision scoring.</p>
         </div>
 
-        <Link
-          href="/report"
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-lg glow-theme transition"
-        >
-          <PlusCircle className="w-4 h-4" />
-          <span>Report New Problem</span>
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/inbox"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-white/5 hover:bg-white/10 text-slate-200 border border-white/10 transition"
+          >
+            <span>Priority Inbox</span>
+          </Link>
+
+          <Link
+            href="/report"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-lg glow-theme transition"
+          >
+            <PlusCircle className="w-4 h-4" />
+            <span>Report New Problem</span>
+          </Link>
+        </div>
       </div>
 
       {/* Filter & Search Bar */}
@@ -110,7 +120,7 @@ export default function ComplaintsFeedPage() {
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
-            placeholder="Search by location or issue type..."
+            placeholder="Search by location, issue type or ID..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-9 pr-4 py-2 rounded-xl bg-slate-900 border border-white/15 text-xs text-slate-100 focus:outline-none focus:border-amber-400"
@@ -161,7 +171,9 @@ export default function ComplaintsFeedPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {filtered.map((inc) => (
-            <IncidentCard key={inc.id} incident={inc} />
+            <Link key={inc.id} href={`/incidents/${inc.id}`} className="block h-full">
+              <IncidentCard incident={inc} />
+            </Link>
           ))}
         </div>
       )}

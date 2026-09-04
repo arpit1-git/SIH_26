@@ -40,51 +40,32 @@ def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
+from app.services.clustering_service import cluster_or_create_incident
+
+
 def _find_or_create_incident(
     latitude: float,
     longitude: float,
     issue_type: str,
     complaint_id: str,
     ai_result,
-    radius_m: float = 200.0,
+    text_description: Optional[str] = None,
+    radius_m: float = 250.0,
 ) -> tuple[str, str]:
     """
-    Find nearby incident of the same type within radius_m, or create a new one.
+    Find nearby incident using Phase 5 Multi-Signal Clustering & Duplicate Detection Engine.
     Returns (incident_id, action) where action is 'merged' | 'created'.
-
-    Phase 4: replaced with PostGIS ST_DWithin + H3 cell proximity query.
     """
-    for inc_id, inc in store.incidents.items():
-        if inc.get("issue_type") != issue_type:
-            continue
-        dist = _haversine_m(latitude, longitude, inc["latitude"], inc["longitude"])
-        if dist <= radius_m:
-            inc["complaint_count"] += 1
-            inc["updated_at"] = datetime.utcnow().isoformat()
-            return inc_id, "merged"
-
-    # Create new incident
-    incident_id = f"JV-{str(uuid.uuid4())[:8].upper()}"
-    severity_score = {"low": 20, "medium": 40, "high": 65, "critical": 85}.get(
-        ai_result.severity_initial.value, 35
+    incident_id, action, confidence, signals = cluster_or_create_incident(
+        latitude=latitude,
+        longitude=longitude,
+        issue_type=issue_type,
+        complaint_id=complaint_id,
+        ai_result=ai_result,
+        text_description=text_description,
+        max_radius_m=radius_m,
     )
-    store.incidents[incident_id] = {
-        "incident_id": incident_id,
-        "issue_type": issue_type,
-        "severity": ai_result.severity_initial.value,
-        "risk_score": float(severity_score),
-        "latitude": latitude,
-        "longitude": longitude,
-        "complaint_count": 1,
-        "support_count": 0,
-        "like_count": 0,
-        "status": "open",
-        "created_at": datetime.utcnow().isoformat(),
-        "updated_at": datetime.utcnow().isoformat(),
-        "segmentation_mask_url": ai_result.segmentation_mask_url,
-        "evidence_score": ai_result.evidence_score,
-    }
-    return incident_id, "created"
+    return incident_id, action
 
 
 async def _save_upload(file: UploadFile, complaint_id: str) -> tuple[str, bytes]:
