@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { RiskBadge, RiskLevel } from "@/components/ui/RiskBadge";
 import { SeverityChip } from "@/components/ui/SeverityChip";
 import {
@@ -17,6 +17,13 @@ import {
   RefreshCw,
   ArrowRight,
   Loader2,
+  Upload,
+  Camera,
+  Compass,
+  Check,
+  Award,
+  AlertCircle,
+  FileCheck
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -31,10 +38,17 @@ interface FieldIncident {
   latitude: number;
   longitude: number;
   image_url?: string;
+  before_image_url?: string;
+  after_image_url?: string;
   segmentation_mask_url?: string;
   affected_area_estimate?: number;
   recommended_actions: string[];
   status: string;
+  verification_status?: string;
+  verification_reduction_pct?: number;
+  verification_confidence?: number;
+  outcome_label?: string;
+  outcome_emoji?: string;
   created_at: string;
 }
 
@@ -43,9 +57,34 @@ interface Worker {
   name: string;
   team: string;
   status: string;
+  latitude?: number;
+  longitude?: number;
   assigned_incident_id?: string;
   current_task_status?: string;
   current_incident?: FieldIncident;
+}
+
+interface RouteStep {
+  instruction: string;
+  distance_km: number;
+  duration_min: number;
+  location: [number, number];
+}
+
+interface RouteSummary {
+  total_distance_km: number;
+  total_duration_min: number;
+  provider: string;
+}
+
+interface RouteData {
+  success: boolean;
+  solver: string;
+  worker_location: [number, number];
+  total_stops: number;
+  route_summary: RouteSummary;
+  navigation_steps: RouteStep[];
+  ordered_incidents: FieldIncident[];
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -80,7 +119,6 @@ function StatusStepper({ currentStatus }: { currentStatus: string }) {
         const Icon = meta.icon;
         const isDone = i < currentIdx;
         const isCurrent = i === currentIdx;
-        const isPending = i > currentIdx;
         return (
           <React.Fragment key={s}>
             <div className="flex flex-col items-center gap-1 min-w-0">
@@ -121,7 +159,7 @@ function StatusStepper({ currentStatus }: { currentStatus: string }) {
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
+// ─── Main Page Component ──────────────────────────────────────────────────────
 
 export default function FieldWorkerPage() {
   const [selectedWorkerId, setSelectedWorkerId] = useState<string>("W001");
@@ -130,14 +168,26 @@ export default function FieldWorkerPage() {
   const [advancing, setAdvancing] = useState(false);
   const [advanceMsg, setAdvanceMsg] = useState<string | null>(null);
 
+  // Routing State
+  const [routeData, setRouteData] = useState<RouteData | null>(null);
+  const [fetchingRoute, setFetchingRoute] = useState(false);
+  const [showRouteDrawer, setShowRouteDrawer] = useState(false);
+
+  // After Evidence State
+  const [afterFile, setAfterFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [uploadingEvidence, setUploadingEvidence] = useState(false);
+  const [verificationResult, setVerificationResult] = useState<any | null>(null);
+
   const fetchWorker = useCallback(async (id: string) => {
     setLoading(true);
     setAdvanceMsg(null);
+    setVerificationResult(null);
     try {
       const res = await fetch(`/api/field/workers/${id}`);
       if (res.ok) setWorker(await res.json());
     } catch (e) {
-      console.error("Field fetch error", e);
+      console.error("Field worker fetch error", e);
     } finally {
       setLoading(false);
     }
@@ -158,16 +208,74 @@ export default function FieldWorkerPage() {
       });
       if (res.ok) {
         const data = await res.json();
-        setAdvanceMsg(`Status advanced to: ${data.new_task_status?.replace(/_/g, " ") ?? "updated"}`);
+        setAdvanceMsg(`Status advanced to: ${data.current_status?.replace(/_/g, " ") ?? "updated"}`);
         setTimeout(() => {
           setAdvanceMsg(null);
           fetchWorker(worker.worker_id);
         }, 1200);
       }
     } catch (e) {
-      console.error("Advance error", e);
+      console.error("Advance status error", e);
     } finally {
       setAdvancing(false);
+    }
+  };
+
+  const computeRoute = async () => {
+    if (!worker) return;
+    setFetchingRoute(true);
+    try {
+      const res = await fetch(`/api/field/workers/${worker.worker_id}/route`, {
+        method: "POST",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setRouteData(data);
+        setShowRouteDrawer(true);
+      }
+    } catch (e) {
+      console.error("Compute route error", e);
+    } finally {
+      setFetchingRoute(false);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setAfterFile(file);
+      setPreviewUrl(URL.createObjectURL(file));
+    }
+  };
+
+  const submitAfterEvidence = async () => {
+    if (!worker?.current_incident) return;
+    setUploadingEvidence(true);
+    try {
+      const formData = new FormData();
+      if (afterFile) {
+        formData.append("file", afterFile);
+      }
+
+      const res = await fetch(
+        `/api/field/incidents/${worker.current_incident.incident_id}/after-evidence`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      if (res.ok) {
+        const data = await res.json();
+        setVerificationResult(data);
+        setTimeout(() => {
+          fetchWorker(worker.worker_id);
+        }, 2000);
+      }
+    } catch (e) {
+      console.error("After evidence error", e);
+    } finally {
+      setUploadingEvidence(false);
     }
   };
 
@@ -184,16 +292,16 @@ export default function FieldWorkerPage() {
           <span className="p-2 rounded-xl bg-gradient-to-tr from-amber-600/30 to-yellow-500/20 border border-amber-500/30">
             <HardHat className="w-7 h-7 text-amber-400" />
           </span>
-          Field Worker Interface
+          Field Worker Portal
         </h1>
         <p className="text-slate-400 text-sm mt-1">
-          Active task assignment, status workflow, and recommended actions
+          O-SRM Routing, OR-Tools Multi-Stop Optimization & Computer Vision Verification
         </p>
       </div>
 
       {/* ── Worker Selector ──────────────────────────────────────────── */}
       <div className="glass-card rounded-2xl p-5">
-        <label className="text-xs text-slate-400 mb-2 block font-medium">Select Worker / Log In As</label>
+        <label className="text-xs text-slate-400 mb-2 block font-medium">Select Active Worker / Duty Shift</label>
         <select
           value={selectedWorkerId}
           onChange={(e) => setSelectedWorkerId(e.target.value)}
@@ -221,30 +329,122 @@ export default function FieldWorkerPage() {
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            className="glass-card rounded-2xl p-5 flex items-center gap-4"
+            className="glass-card rounded-2xl p-5 flex items-center justify-between gap-4"
           >
-            <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-amber-500 to-cyan-500 flex items-center justify-center text-xl font-bold text-slate-950 shrink-0">
-              {worker.name?.[0] ?? "?"}
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-amber-500 to-cyan-500 flex items-center justify-center text-xl font-bold text-slate-950 shrink-0">
+                {worker.name?.[0] ?? "?"}
+              </div>
+              <div>
+                <div className="font-bold text-white text-base">{worker.name}</div>
+                <div className="text-xs text-slate-400">{worker.team}</div>
+              </div>
             </div>
-            <div className="flex-1">
-              <div className="font-bold">{worker.name}</div>
-              <div className="text-xs text-slate-400">{worker.team}</div>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span
-                className={`w-2 h-2 rounded-full animate-pulse ${
-                  worker.status === "available"
-                    ? "bg-emerald-400"
-                    : worker.status === "on_duty"
-                    ? "bg-amber-400"
-                    : "bg-blue-400"
-                }`}
-              />
-              <span className="text-xs font-medium capitalize text-slate-300">
-                {worker.status?.replace("_", " ") ?? ""}
-              </span>
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={computeRoute}
+                disabled={fetchingRoute}
+                className="px-3.5 py-2 rounded-xl bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 text-xs font-semibold hover:bg-cyan-500/30 transition flex items-center gap-1.5"
+              >
+                {fetchingRoute ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Compass className="w-3.5 h-3.5 text-cyan-400" />
+                )}
+                Route & TSP
+              </button>
+
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900 border border-white/10">
+                <span
+                  className={`w-2 h-2 rounded-full animate-pulse ${
+                    worker.status === "available"
+                      ? "bg-emerald-400"
+                      : worker.status === "on_duty"
+                      ? "bg-amber-400"
+                      : "bg-blue-400"
+                  }`}
+                />
+                <span className="text-xs font-medium capitalize text-slate-300">
+                  {worker.status?.replace("_", " ") ?? ""}
+                </span>
+              </div>
             </div>
           </motion.div>
+
+          {/* ── Route Navigation Drawer / Modal ────────────────────── */}
+          <AnimatePresence>
+            {showRouteDrawer && routeData && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="glass-card rounded-2xl p-5 border border-cyan-500/30 bg-slate-900/90 space-y-4"
+              >
+                <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Compass className="w-5 h-5 text-cyan-400" />
+                    <span className="font-bold text-cyan-300 text-sm">
+                      Navigation & TSP Dispatch Route ({routeData.solver})
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setShowRouteDrawer(false)}
+                    className="text-xs text-slate-400 hover:text-white"
+                  >
+                    Close ✕
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3 text-center">
+                  <div className="p-3 rounded-xl bg-slate-950/60 border border-white/5">
+                    <div className="text-[10px] text-slate-400 font-medium uppercase">Distance</div>
+                    <div className="text-lg font-bold text-amber-400">
+                      {routeData.route_summary?.total_distance_km} km
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-950/60 border border-white/5">
+                    <div className="text-[10px] text-slate-400 font-medium uppercase">ETA</div>
+                    <div className="text-lg font-bold text-cyan-400">
+                      {routeData.route_summary?.total_duration_min} min
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-950/60 border border-white/5">
+                    <div className="text-[10px] text-slate-400 font-medium uppercase">Provider</div>
+                    <div className="text-xs font-bold text-emerald-400 mt-1">
+                      {routeData.route_summary?.provider}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Turn by Turn Instructions */}
+                <div>
+                  <div className="text-xs text-slate-400 font-medium mb-2 flex items-center gap-1.5">
+                    <Navigation className="w-3.5 h-3.5 text-cyan-400" />
+                    Street Navigation Guidance
+                  </div>
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {routeData.navigation_steps?.map((step, idx) => (
+                      <div
+                        key={idx}
+                        className="p-2.5 rounded-xl bg-slate-950/40 border border-white/5 text-xs flex items-center justify-between gap-2"
+                      >
+                        <span className="text-slate-300 flex items-center gap-2">
+                          <span className="w-4 h-4 rounded-full bg-cyan-500/20 text-cyan-400 text-[10px] font-bold flex items-center justify-center shrink-0">
+                            {idx + 1}
+                          </span>
+                          {step.instruction}
+                        </span>
+                        <span className="text-slate-400 font-mono text-[11px] shrink-0">
+                          {step.distance_km} km ({step.duration_min}m)
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* ── Assignment Card ─────────────────────────────────────── */}
           {!incident ? (
@@ -299,7 +499,7 @@ export default function FieldWorkerPage() {
                 <div className="flex items-start gap-3">
                   <MapPin className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
                   <div>
-                    <div className="text-sm font-medium">{incident.location_name}</div>
+                    <div className="text-sm font-medium text-white">{incident.location_name}</div>
                     {incident.latitude && incident.longitude && (
                       <a
                         href={`https://maps.google.com/?q=${incident.latitude},${incident.longitude}`}
@@ -307,7 +507,7 @@ export default function FieldWorkerPage() {
                         rel="noopener noreferrer"
                         className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 mt-0.5"
                       >
-                        <Navigation className="w-3 h-3" /> Navigate →
+                        <Navigation className="w-3 h-3" /> Navigate via Google Maps →
                       </a>
                     )}
                   </div>
@@ -317,7 +517,7 @@ export default function FieldWorkerPage() {
                 {incident.affected_area_estimate && (
                   <div className="flex items-center gap-3">
                     <AlertTriangle className="w-4 h-4 text-orange-400 shrink-0" />
-                    <div className="text-sm">
+                    <div className="text-sm text-slate-300">
                       Estimated affected area:{" "}
                       <span className="font-bold text-orange-400">
                         {incident.affected_area_estimate} m²
@@ -328,7 +528,7 @@ export default function FieldWorkerPage() {
 
                 {/* Status Stepper */}
                 <div className="pt-2 border-t border-white/5">
-                  <div className="text-xs text-slate-400 mb-3 font-medium">Current Status</div>
+                  <div className="text-xs text-slate-400 mb-3 font-medium">Current Workflow Status</div>
                   <StatusStepper currentStatus={currentStatus} />
                 </div>
 
@@ -337,7 +537,7 @@ export default function FieldWorkerPage() {
                   <div className="border-t border-white/5 pt-4">
                     <div className="text-xs text-slate-400 mb-3 font-medium flex items-center gap-1.5">
                       <Zap className="w-3.5 h-3.5 text-amber-400" />
-                      Recommended Actions
+                      Recommended SOP Actions
                     </div>
                     <ol className="space-y-2">
                       {incident.recommended_actions.map((action, i) => (
@@ -355,24 +555,109 @@ export default function FieldWorkerPage() {
                   </div>
                 )}
 
-                {/* Advance Status CTA */}
-                <div className="border-t border-white/5 pt-4">
+                {/* Advance Status & Evidence Upload CTA */}
+                <div className="border-t border-white/5 pt-4 space-y-4">
                   {advanceMsg && (
                     <motion.div
                       initial={{ opacity: 0, y: -4 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="mb-3 p-3 rounded-xl bg-emerald-900/30 border border-emerald-500/30 text-emerald-300 text-sm text-center"
+                      className="p-3 rounded-xl bg-emerald-900/30 border border-emerald-500/30 text-emerald-300 text-sm text-center"
                     >
                       ✅ {advanceMsg}
                     </motion.div>
                   )}
 
                   {isCompleted ? (
-                    <div className="flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-900/30 border border-emerald-500/30">
-                      <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                      <span className="text-emerald-400 font-semibold">
-                        Task Complete — Awaiting AI Verification
-                      </span>
+                    <div className="space-y-4">
+                      {/* After Evidence Upload Form */}
+                      <div className="p-4 rounded-xl bg-slate-900/90 border border-amber-500/30 space-y-3">
+                        <div className="flex items-center gap-2">
+                          <Camera className="w-4 h-4 text-amber-400" />
+                          <span className="text-sm font-bold text-amber-300">
+                            Submit After-Cleanup Evidence Photo
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-400">
+                          Upload clear photo evidence of the site after completion for AI Computer Vision verification.
+                        </p>
+
+                        <div className="flex items-center gap-3">
+                          <label className="flex-1 cursor-pointer flex items-center justify-center gap-2 p-3 rounded-xl border border-dashed border-white/20 bg-slate-950/60 hover:border-amber-400 transition text-xs font-semibold text-slate-300">
+                            <Upload className="w-4 h-4 text-amber-400" />
+                            {afterFile ? afterFile.name : "Select or Take Photo"}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={handleFileChange}
+                              className="hidden"
+                            />
+                          </label>
+                        </div>
+
+                        {previewUrl && (
+                          <div className="relative h-36 rounded-xl overflow-hidden border border-white/10">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={previewUrl}
+                              alt="After Preview"
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        )}
+
+                        <button
+                          onClick={submitAfterEvidence}
+                          disabled={uploadingEvidence}
+                          className="w-full py-3 rounded-xl font-bold text-sm bg-gradient-to-r from-emerald-500 to-teal-600 text-slate-950 hover:brightness-110 transition flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                          {uploadingEvidence ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <>
+                              <FileCheck className="w-4 h-4" />
+                              Submit & Run Computer Vision Verification
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      {/* Verification Results Display */}
+                      {verificationResult && (
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.96 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          className="p-4 rounded-xl bg-emerald-950/40 border border-emerald-500/40 space-y-3"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-emerald-300 text-sm flex items-center gap-2">
+                              <span>{verificationResult.outcome_emoji}</span>
+                              {verificationResult.outcome_label}
+                            </span>
+                            <span className="text-xs font-mono font-bold text-emerald-400 bg-emerald-500/20 px-2.5 py-1 rounded-full border border-emerald-500/30">
+                              {(verificationResult.verification_confidence * 100).toFixed(0)}% AI Confidence
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3 text-center">
+                            <div className="p-2.5 rounded-lg bg-slate-900/60 border border-white/5">
+                              <div className="text-[10px] text-slate-400">Area Reduction</div>
+                              <div className="text-base font-extrabold text-emerald-400">
+                                {verificationResult.verification_reduction_pct}%
+                              </div>
+                            </div>
+                            <div className="p-2.5 rounded-lg bg-slate-900/60 border border-white/5">
+                              <div className="text-[10px] text-slate-400">Current Status</div>
+                              <div className="text-xs font-bold text-cyan-300 capitalize mt-1">
+                                {verificationResult.status}
+                              </div>
+                            </div>
+                          </div>
+
+                          <p className="text-xs text-emerald-200/90 text-center font-medium">
+                            {verificationResult.message}
+                          </p>
+                        </motion.div>
+                      )}
                     </div>
                   ) : (
                     <button
@@ -385,10 +670,10 @@ export default function FieldWorkerPage() {
                       ) : (
                         <>
                           <ArrowRight className="w-4 h-4" />
-                          Advance to:{" "}
+                          Advance Status to:{" "}
                           {nextStatus
                             ? STATUS_META[nextStatus]?.label
-                            : "Complete"}
+                            : "Complete Task"}
                         </>
                       )}
                     </button>
@@ -404,7 +689,7 @@ export default function FieldWorkerPage() {
             className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm glass-button text-slate-400 hover:text-slate-200"
           >
             <RefreshCw className="w-4 h-4" />
-            Refresh Status
+            Refresh Worker Duty Status
           </button>
         </>
       )}

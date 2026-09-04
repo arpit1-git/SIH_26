@@ -21,7 +21,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
-from app.api import ai, complaints, incidents, map, admin, news
+from app.api import ai, complaints, incidents, map, admin, news, field
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(

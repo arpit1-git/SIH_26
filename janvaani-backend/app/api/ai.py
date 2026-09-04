@@ -144,17 +144,15 @@ async def verify_resolution(
     """
     Compare before/after images to verify issue resolution.
     Returns area reduction % and outcome: ✅ Fully Resolved / ⚠️ Partial / ❌ Not Verified / 🟡 Review.
-
-    **YOLO swap note:** Mock returns random realistic reduction %.
-    YOLO26-Seg will run real segmentation on both images and compare pixel-level masks.
+    Runs Structural Similarity (SSIM), color histogram comparison, and contour area reduction analysis.
     """
     _validate_image(before)
     _validate_image(after)
     before_bytes = await before.read()
     after_bytes  = await after.read()
 
-    ai = get_ai_service()
-    return await ai.verify_resolution(before_bytes, after_bytes)
+    from app.services.verification_service import analyze_before_after_cv
+    return analyze_before_after_cv(before_bytes, after_bytes)
 
 
 @router.get(
