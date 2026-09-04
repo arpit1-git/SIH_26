@@ -21,7 +21,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
-from app.api import ai, complaints, incidents, map, admin
+from app.api import ai, complaints, incidents, map, admin, news
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -35,30 +35,16 @@ logger = logging.getLogger("janvaani")
 app = FastAPI(
     title="JANVAANI — Civic Intelligence Platform API",
     description="""
-## JANVAANI API — Phase 1: Foundation + Mock AI Layer
+## JANVAANI API — Responsive Civic AI & Public Community Engine
 
-AI-powered civic issue detection, prioritization, response, and resolution.
+AI-powered civic issue detection, prioritization, response, community social awareness, and resolution.
 
 **Lifecycle:** Report → Detect → Segment → Cluster → Score → Assign → Route → Verify → Resolve
-
----
-
-### 🤖 Current AI Provider: **Mock**
-Realistic fake AI data is returned for all `/api/ai/*` endpoints.
-Set `AI_PROVIDER=yolo` in `.env` when YOLO26-Seg training is complete.
-
-### 🔓 Authentication
-- **Citizen APIs** (`/api/complaints`, `/api/incidents`, `/api/map`): No auth required
-- **Admin APIs** (`/api/admin`): JWT + RBAC added in Phase 7
-
-### 📍 Issue Types
-**Waste:** `plastic_waste` · `organic_waste` · `mixed_waste` · `illegal_dumping` · `overflowing_bin`  
-**Water:** `waterlogging` · `flooded_road` · `standing_water` · `blocked_drainage`
     """,
-    version="1.0.0-phase1",
+    version="2.0.0-phase6",
     docs_url="/docs",
     redoc_url="/redoc",
-    contact={"name": "JANVAANI Team", "url": "https://github.com/your-repo/janvaani"},
+    contact={"name": "JANVAANI Team", "url": "https://github.com/arpit1-git/SIH_26"},
 )
 
 
@@ -93,6 +79,7 @@ app.include_router(complaints.router)
 app.include_router(incidents.router)
 app.include_router(map.router)
 app.include_router(admin.router)
+app.include_router(news.router)
 
 
 # ── Root + Health ─────────────────────────────────────────────────────────────

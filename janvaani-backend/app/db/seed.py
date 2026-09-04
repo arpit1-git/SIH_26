@@ -93,6 +93,14 @@ def generate_mock_incidents(count: int = 50) -> list:
             "created_at": created_at.isoformat(),
             "updated_at": now.isoformat(),
             "comments_count": random.randint(2, 14),
+            "like_count": random.randint(4, 45),
+            "resolved_at": (created_at + timedelta(hours=random.randint(2, 8))).isoformat() if status == "resolved" else None,
+            "before_image_url": theme["img"] if status == "resolved" else None,
+            "after_image_url": ("/ui_themes/waste3.jpg" if theme["cat"] == "waste" else "/ui_themes/water4.png") if status == "resolved" else None,
+            "verification_reduction_pct": round(random.uniform(88.0, 97.5), 1) if status == "resolved" else None,
+            "verification_confidence": round(random.uniform(0.91, 0.98), 2) if status == "resolved" else None,
+            "verification_status": "fully_resolved" if status == "resolved" else None,
+            "citizen_satisfaction_rating": round(random.uniform(4.2, 5.0), 1) if status == "resolved" else None,
         })
 
     return incidents

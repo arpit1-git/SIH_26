@@ -6,12 +6,15 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ExplainableScoreCard, FactorBreakdown } from "@/components/ui/ExplainableScoreCard";
 import { NearbyFacilitiesCard, FacilityItem } from "@/components/ui/NearbyFacilitiesCard";
+import { BeforeAfterSlider } from "@/components/ui/BeforeAfterSlider";
+import { CommunityCommentsSection } from "@/components/ui/CommunityCommentsSection";
 import { RiskBadge, RiskLevel } from "@/components/ui/RiskBadge";
 import { SeverityChip } from "@/components/ui/SeverityChip";
 import {
   MapPin,
   Clock,
   ThumbsUp,
+  Heart,
   MessageSquare,
   Share2,
   ShieldCheck,
@@ -24,6 +27,7 @@ import {
   Zap,
   RefreshCw,
   Building,
+  Star,
 } from "lucide-react";
 
 interface CommentItem {
@@ -346,23 +350,38 @@ export default function IncidentDetailPage() {
             </div>
           </div>
 
-          {/* Citizen Support CTA ("I am also affected") */}
+          {/* Citizen Support & Reactions CTA */}
           <div className="flex flex-col sm:flex-row lg:flex-col items-stretch sm:items-center gap-3 shrink-0 w-full lg:w-auto">
-            <button
-              onClick={handleSupport}
-              disabled={supported || supportLoading}
-              className={`px-6 py-3.5 rounded-2xl text-xs font-bold transition-all shadow-xl flex items-center justify-center gap-2 transform active:scale-95 ${
-                supported
-                  ? "bg-emerald-600 text-white shadow-emerald-500/20"
-                  : "bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 glow-theme"
-              }`}
-            >
-              <ThumbsUp className={`w-4 h-4 ${supported ? "text-white" : "text-slate-950"}`} />
-              <span>{supported ? "Support Registered!" : "I Am Also Affected"}</span>
-              <span className="px-2 py-0.5 rounded-full bg-black/20 text-[11px] font-mono font-bold">
-                {inc.support_count}
-              </span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleSupport}
+                disabled={supported || supportLoading}
+                className={`flex-1 px-5 py-3 rounded-2xl text-xs font-bold transition-all shadow-xl flex items-center justify-center gap-2 transform active:scale-95 ${
+                  supported
+                    ? "bg-emerald-600 text-white shadow-emerald-500/20"
+                    : "bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 glow-theme"
+                }`}
+              >
+                <ThumbsUp className={`w-4 h-4 ${supported ? "text-white" : "text-slate-950"}`} />
+                <span>{supported ? "Supported" : "I'm Affected"}</span>
+                <span className="px-2 py-0.5 rounded-full bg-black/20 text-[11px] font-mono font-bold">
+                  {inc.support_count}
+                </span>
+              </button>
+
+              <button
+                onClick={async () => {
+                  setIncident(prev => prev ? { ...prev, like_count: (prev.like_count || 0) + 1 } : prev);
+                  try {
+                    await fetch(`/api/incidents/${inc.incident_id}/like`, { method: "POST" });
+                  } catch {}
+                }}
+                className="px-4 py-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-rose-400 text-xs font-bold transition flex items-center gap-1.5"
+              >
+                <Heart className="w-4 h-4 fill-current text-rose-400" />
+                <span>{inc.like_count || 12}</span>
+              </button>
+            </div>
             <p className="text-[11px] text-center text-slate-400">
               Escalates municipal priority without creating duplicate tickets.
             </p>
@@ -374,6 +393,17 @@ export default function IncidentDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Left Column: Visual Evidence & Segmentation (PRD §11 & §26) */}
         <div className="lg:col-span-7 space-y-6">
+          {/* If Resolved, Show Before/After Slider */}
+          {inc.status === "resolved" && (
+            <BeforeAfterSlider
+              beforeImage={inc.image_url || "/ui_themes/waste1.jpg"}
+              afterImage="/ui_themes/waste3.jpg"
+              reductionPct={92.4}
+              initialArea={inc.affected_area_estimate || 35.0}
+              clearedArea={2.4}
+            />
+          )}
+
           <div className="glass-panel p-6 rounded-3xl border border-white/10 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -533,67 +563,11 @@ export default function IncidentDetailPage() {
             </div>
           </div>
 
-          {/* Community Discussion & Comments Section */}
-          <div className="glass-panel p-6 rounded-3xl border border-white/10 space-y-4">
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <div className="flex items-center gap-2">
-                <MessageSquare className="w-4 h-4 text-amber-400" />
-                <h3 className="text-sm font-bold text-white">Community Activity & Comments</h3>
-              </div>
-              <span className="text-xs font-mono text-slate-400">
-                {(inc.comments || []).length} Comments
-              </span>
-            </div>
-
-            {/* Comment Form */}
-            <form onSubmit={handleAddComment} className="space-y-3">
-              <input
-                type="text"
-                placeholder="Your Name (Optional)"
-                value={authorName}
-                onChange={(e) => setAuthorName(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-white/15 text-xs text-slate-100 focus:outline-none focus:border-amber-400"
-              />
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Share details or updates on this problem..."
-                  value={newCommentText}
-                  onChange={(e) => setNewCommentText(e.target.value)}
-                  className="flex-1 px-3 py-2 rounded-xl bg-slate-900 border border-white/15 text-xs text-slate-100 focus:outline-none focus:border-amber-400"
-                />
-                <button
-                  type="submit"
-                  disabled={submittingComment || !newCommentText.trim()}
-                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition disabled:opacity-50 flex items-center gap-1.5"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>Post</span>
-                </button>
-              </div>
-            </form>
-
-            {/* Comments List */}
-            <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
-              {(inc.comments || []).length === 0 ? (
-                <p className="text-xs text-slate-400 italic text-center py-4">
-                  No comments yet. Be the first to share an update.
-                </p>
-              ) : (
-                (inc.comments || []).map((c, i) => (
-                  <div key={i} className="bg-slate-900/60 p-3 rounded-2xl border border-white/5 space-y-1 text-xs">
-                    <div className="flex items-center justify-between text-slate-400">
-                      <span className="font-semibold text-slate-200">{c.author_name || "Resident"}</span>
-                      <span className="font-mono text-[10px]">
-                        {new Date(c.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                      </span>
-                    </div>
-                    <p className="text-slate-300 leading-relaxed">{c.text}</p>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+          {/* Community Discussion & Public Notes (Phase 6) */}
+          <CommunityCommentsSection
+            incidentId={inc.incident_id}
+            initialComments={(inc.comments as any) || []}
+          />
         </div>
       </div>
     </div>

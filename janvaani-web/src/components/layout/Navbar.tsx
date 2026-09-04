@@ -11,10 +11,12 @@ export const Navbar: React.FC = () => {
 
   const navLinks = [
     { name: "Explore", href: "/" },
-    { name: "Report Issue", href: "/report" },
-    { name: "Complaints", href: "/complaints" },
+    { name: "Report", href: "/report" },
+    { name: "Feed", href: "/complaints" },
     { name: "Heatmap", href: "/heatmap" },
     { name: "Priority Inbox", href: "/inbox" },
+    { name: "Civic News", href: "/news" },
+    { name: "Resolved", href: "/resolved" },
   ];
 
   return (

@@ -15,8 +15,15 @@ incidents: Dict[str, dict] = {}
 # comments[incident_id] = [ { id, text, author, created_at }, ... ]
 comments: Dict[str, list] = {}
 
+# feedback[incident_id] = [ { rating: 1-5, comment, citizen_name, created_at } ]
+feedback: Dict[str, list] = {}
+
 # supports[incident_id] = set of ip/session hashes
 supports: Dict[str, set] = {}
+
+# news reactions
+news_likes: Dict[str, int] = {}
+news_shares: Dict[str, int] = {}
 
 # Nearby facility evidence cache
 facilities: Dict[str, list] = {}
