@@ -12,6 +12,7 @@ import {
   Cpu,
   ChevronDown,
   Building2,
+  ShieldCheck,
 } from "lucide-react";
 
 export const Navbar: React.FC = () => {
@@ -33,6 +34,7 @@ export const Navbar: React.FC = () => {
     { name: "Predictive AI", href: "/predictions", icon: Cpu },
     { name: "Field Worker", href: "/field", icon: HardHat },
     { name: "SLA & Escalation", href: "/escalation", icon: AlertTriangle },
+    { name: "System Status", href: "/system-status", icon: ShieldCheck },
   ];
 
   const isMunicipalActive = municipalLinks.some((l) => pathname === l.href);

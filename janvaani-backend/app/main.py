@@ -21,7 +21,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
-from app.api import ai, complaints, incidents, map, admin, news, field
+from app.api import ai, complaints, incidents, map, admin, news, field, auth, system
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -41,7 +41,7 @@ AI-powered civic issue detection, prioritization, response, community social awa
 
 **Lifecycle:** Report → Detect → Segment → Cluster → Score → Assign → Route → Verify → Resolve
     """,
-    version="2.0.0-phase6",
+    version="2.0.0-phase10",
     docs_url="/docs",
     redoc_url="/redoc",
     contact={"name": "JANVAANI Team", "url": "https://github.com/arpit1-git/SIH_26"},
@@ -80,6 +80,9 @@ app.include_router(incidents.router)
 app.include_router(map.router)
 app.include_router(admin.router)
 app.include_router(news.router)
+app.include_router(field.router)
+app.include_router(auth.router)
+app.include_router(system.router)
 
 
 # ── Root + Health ─────────────────────────────────────────────────────────────
@@ -87,9 +90,9 @@ app.include_router(news.router)
 async def root():
     return {
         "service":      "JANVAANI Civic Intelligence API",
-        "version":      "1.0.0-phase1",
+        "version":      "2.0.0-phase10",
         "status":       "running",
-        "phase":        "Phase 1 — Foundation + Mock AI Layer",
+        "phase":        "Phase 10 — System Hardening, JWT/RBAC Auth & Telemetry",
         "ai_provider":  settings.AI_PROVIDER,
         "docs":         "/docs",
         "redoc":        "/redoc",
@@ -99,6 +102,8 @@ async def root():
             "incidents":  "/api/incidents",
             "map":        "/api/map/*",
             "admin":      "/api/admin/*",
+            "auth":       "/api/auth/*",
+            "system":     "/api/system/*",
         },
     }
 
